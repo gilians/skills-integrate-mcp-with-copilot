@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 import os
 from pathlib import Path
+from pydantic import BaseModel
 
 app = FastAPI(title="Mergington High School API",
               description="API for viewing and signing up for extracurricular activities")
@@ -78,6 +79,13 @@ activities = {
 }
 
 
+class ActivityCreate(BaseModel):
+    name: str
+    description: str
+    schedule: str
+    max_participants: int
+
+
 @app.get("/")
 def root():
     return RedirectResponse(url="/static/index.html")
@@ -130,3 +138,40 @@ def unregister_from_activity(activity_name: str, email: str):
     # Remove student
     activity["participants"].remove(email)
     return {"message": f"Unregistered {email} from {activity_name}"}
+
+
+@app.post("/activities")
+def create_activity(activity: ActivityCreate):
+    """Create a new activity"""
+    if activity.name in activities:
+        raise HTTPException(status_code=400, detail="Activity already exists")
+    activities[activity.name] = {
+        "description": activity.description,
+        "schedule": activity.schedule,
+        "max_participants": activity.max_participants,
+        "participants": []
+    }
+    return {"message": f"Activity '{activity.name}' created"}
+
+
+@app.put("/activities/{activity_name}")
+def update_activity(activity_name: str, activity: ActivityCreate):
+    """Update an existing activity"""
+    if activity_name not in activities:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    activities[activity_name] = {
+        "description": activity.description,
+        "schedule": activity.schedule,
+        "max_participants": activity.max_participants,
+        "participants": activities[activity_name]["participants"]  # preserve participants
+    }
+    return {"message": f"Activity '{activity_name}' updated"}
+
+
+@app.delete("/activities/{activity_name}")
+def delete_activity(activity_name: str):
+    """Delete an activity"""
+    if activity_name not in activities:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    del activities[activity_name]
+    return {"message": f"Activity '{activity_name}' deleted"}
